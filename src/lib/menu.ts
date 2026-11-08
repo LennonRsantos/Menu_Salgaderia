@@ -52,7 +52,8 @@ export function productFromRow(r: Record<string, unknown>): Product {
 export const SETTINGS_COLUMNS =
   "id, name, tagline, phone, logo_url, delivery_fee, min_order, is_open, opening_hours, auto_hours, hours, other_zones, schedule_enabled, schedule_min_hours, schedule_max_days, " +
   "address, delivery_enabled, pickup_enabled, delivery_min, delivery_max, pickup_min, pickup_max, slot_capacity, " +
-  "theme_palette, festive_mode, festive_message, festive_effects, header_image_url, address_zip";
+  "theme_palette, festive_mode, festive_message, festive_effects, header_image_url, address_zip, " +
+  "birthday_alert, birthday_days_before, birthday_message";
 export const ZONES_SQL = "select id, name, fee, position from delivery_zones order by position, name";
 export const SPECIAL_DATES_SQL = "select to_char(date, 'YYYY-MM-DD') as date, title from special_dates order by date";
 
@@ -73,6 +74,9 @@ export function settingsFromRow(
     festive_mode: toFestiveMode(row.festive_mode),
     festive_message: (row.festive_message as string | null) ?? null,
     festive_effects: row.festive_effects !== false,
+    birthday_alert: row.birthday_alert !== false,
+    birthday_days_before: Number(row.birthday_days_before ?? 0),
+    birthday_message: (row.birthday_message as string | null) ?? null,
   };
 }
 

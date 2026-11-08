@@ -77,6 +77,15 @@ export interface Neighborhood {
   revenue: number;
 }
 
+export interface BirthdayRow {
+  name: string;
+  phone: string;
+  /** "YYYY-MM-DD" */
+  birthday: string;
+  /** 0 = today. */
+  days_left: number;
+}
+
 export type DashboardResult =
   | {
       ok: true;
@@ -89,6 +98,9 @@ export type DashboardResult =
       customers: Customers;
       neighborhoods: Neighborhood[];
       store_name: string;
+      /** Customers with a birthday within the window set in the panel; empty when the alert is off. */
+      birthdays: BirthdayRow[];
+      birthday_message: string | null;
     }
   | { ok: false; error: string };
 
@@ -105,7 +117,7 @@ export async function getDashboard(days: number): Promise<DashboardResult> {
     await requireAdmin();
     const range = Math.min(Math.max(Math.floor(days) || 30, 1), 365);
 
-    const [[m], series, top, [profit], margins, heat, [times], [customerCounts], topCustomers, lost, neighborhoods, [store]] = await Promise.all([
+    const [[m], series, top, [profit], margins, heat, [times], [customerCounts], topCustomers, lost, neighborhoods, [store], birthdays] = await Promise.all([
       query<Metrics>(
         `select
            coalesce(sum(total) filter (where ${local("created_at")} >= date_trunc('day', ${LOCAL})), 0) as today_revenue,
@@ -214,7 +226,20 @@ export async function getDashboard(days: number): Promise<DashboardResult> {
           order by orders desc, revenue desc limit 8`,
         [range],
       ),
-      query<{ name: string }>("select name from store_settings where id = 1"),
+      query<{ name: string; birthday_message: string | null }>("select name, birthday_message from store_settings where id = 1"),
+      // birthdays from today to birthday_days_before days ahead, in the store's time zone
+      query<BirthdayRow>(
+        `with s as (select birthday_alert, birthday_days_before from store_settings where id = 1),
+              days as (select n, ${LOCAL}::date + n as d from s, generate_series(0, s.birthday_days_before) n where s.birthday_alert)
+         select a.name, a.phone, to_char(a.birthday, 'YYYY-MM-DD') as birthday, min(days.n)::int as days_left
+           from customer_accounts a
+           join days on to_char(a.birthday, 'MM-DD') = to_char(days.d, 'MM-DD')
+             -- 29/02 birthdays are greeted on 28/02 in non-leap years
+             or (to_char(a.birthday, 'MM-DD') = '02-29' and to_char(days.d, 'MM-DD') = '02-28'
+                 and extract(day from date_trunc('year', days.d) + interval '1 month 28 days') <> 29)
+          group by a.user_id, a.name, a.phone, a.birthday
+          order by days_left, a.name limit 20`,
+      ),
     ]);
 
     const asDate = (v: unknown) => (v instanceof Date ? v.toISOString() : String(v));
@@ -233,6 +258,8 @@ export async function getDashboard(days: number): Promise<DashboardResult> {
       },
       neighborhoods,
       store_name: store?.name ?? "loja",
+      birthdays,
+      birthday_message: store?.birthday_message ?? null,
     };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erro ao carregar o dashboard." };

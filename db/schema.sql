@@ -364,3 +364,10 @@ create unique index if not exists coupon_redemptions_user_idx
 -- Discount on the products (never on the delivery fee); total is already net of it.
 alter table orders add column if not exists discount numeric(10, 2) not null default 0 check (discount >= 0);
 alter table orders add column if not exists coupon_code text;
+
+-- Birthday banner on the Dashboard (days_before = 0: only on the day) and the
+-- congratulation text; null = default message (src/lib/customer.ts).
+alter table store_settings add column if not exists birthday_alert boolean not null default true;
+alter table store_settings add column if not exists birthday_days_before int not null default 0
+  check (birthday_days_before between 0 and 30);
+alter table store_settings add column if not exists birthday_message text;

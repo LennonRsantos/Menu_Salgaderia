@@ -6,12 +6,13 @@ import { toast } from "sonner";
 import { getSettingsAdmin, saveSettings, type SettingsInput } from "@/actions/settings";
 import { StoreLogo } from "@/components/store/store-header";
 import { Button } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/field";
+import { Field, Input, Textarea } from "@/components/ui/field";
 import { Card, Skeleton } from "@/components/ui/misc";
 import { Switch } from "@/components/ui/switch";
 import { cn, maskPhone, maskZip, onlyDigits, parseMoney } from "@/lib/format";
 import { hoursLabel, isOpenAt, nextOpening, spNow, WEEKDAYS, type OpeningHours } from "@/lib/hours";
 import { formatCepAddress, lookupCep, type CepAddress } from "@/lib/cep";
+import { birthdayMessage, DEFAULT_BIRTHDAY_MESSAGE } from "@/lib/customer";
 import { cleanImageUrl } from "@/lib/menu-admin";
 import { activeTheme, carnivalWindow, FESTIVE, FESTIVE_IDS, PALETTE_IDS, PALETTES, type ActiveTheme, type FestiveMode } from "@/lib/themes";
 import { useUnsavedChanges } from "@/lib/use-unsaved-changes";
@@ -59,6 +60,9 @@ const EMPTY: StoreSettings = {
   festive_effects: true,
   header_image_url: null,
   address_zip: null,
+  birthday_alert: true,
+  birthday_days_before: 0,
+  birthday_message: null,
 };
 
 function SettingsLoader() {
@@ -128,6 +132,9 @@ const formFrom = (initial: StoreSettings) => ({
   festive_message: initial.festive_message ?? "",
   festive_effects: initial.festive_effects,
   header_image_url: initial.header_image_url,
+  birthday_alert: initial.birthday_alert,
+  birthday_days_before: String(initial.birthday_days_before),
+  birthday_message: initial.birthday_message ?? "",
 });
 
 type Form = ReturnType<typeof formFrom>;
@@ -144,7 +151,7 @@ const TABS: { id: SettingsTab; label: string }[] = [
 
 /** Which fields each tab edits; the open/closed switch saves on its own, so it is in none. */
 const TAB_FIELDS: Record<SettingsTab, (keyof Form)[]> = {
-  perfil: ["name", "tagline", "phone", "logo_url", "address", "address_zip"],
+  perfil: ["name", "tagline", "phone", "logo_url", "address", "address_zip", "birthday_alert", "birthday_days_before", "birthday_message"],
   aparencia: ["theme_palette", "festive_mode", "festive_message", "festive_effects", "header_image_url"],
   horario: ["opening_hours", "auto_hours", "days"],
   pedidos: [
@@ -277,6 +284,8 @@ function SettingsForm({ initial }: { initial: StoreSettings }) {
     if (form.header_image_url?.trim() && !cleanImageUrl(form.header_image_url)) {
       return { tab: "aparencia", message: "O link da imagem de fundo deve começar com https://" };
     }
+    const birthdayDays = Number(form.birthday_days_before || "0");
+    if (!Number.isInteger(birthdayDays) || birthdayDays < 0 || birthdayDays > 30) return { tab: "perfil", message: "Avise os aniversários de 0 a 30 dias antes." };
     if (form.auto_hours && hours.length === 0) return { tab: "horario", message: "Marque ao menos um dia de funcionamento." };
     if (!Number.isFinite(fee) || fee < 0 || !Number.isFinite(min) || min < 0) return { tab: "pedidos", message: "Revise os valores." };
     if (form.zones.some((z) => !z.name.trim() || !Number.isFinite(parseMoney(z.fee || "0")) || parseMoney(z.fee || "0") < 0)) {
@@ -327,6 +336,9 @@ function SettingsForm({ initial }: { initial: StoreSettings }) {
         festive_message: form.festive_message.trim() || null,
         festive_effects: form.festive_effects,
         header_image_url: cleanImageUrl(form.header_image_url),
+        birthday_alert: form.birthday_alert,
+        birthday_days_before: Number(form.birthday_days_before || "0"),
+        birthday_message: form.birthday_message.trim() || null,
       });
       setForm((f) => ({ ...f, zones: saved.current.zones.map((z) => ({ key: z.id, name: z.name, fee: money(z.fee) })) }));
       setBaseline(form);
@@ -518,6 +530,46 @@ function ProfileTab({
             {(p) => <Input {...p} value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="Rua das Flores, 123 - Centro, São Paulo" maxLength={200} />}
           </Field>
         </div>
+      </Card>
+
+      <Card className="space-y-4 p-5">
+        <SectionTitle title="Aniversariantes" description="Aviso no Dashboard com botão para enviar parabéns no WhatsApp do cliente. Vale para clientes com conta e data de nascimento." />
+        <div className="rounded-md bg-surface-2 px-4 py-1">
+          <Switch checked={form.birthday_alert} onCheckedChange={(v) => set("birthday_alert", v)} label="Avisar aniversariantes no Dashboard" />
+        </div>
+        {form.birthday_alert && (
+          <>
+            <div className="max-w-xs">
+              <Field label="Avisar quantos dias antes" hint="0 = só no dia. Máximo: 30.">
+                {(p) => (
+                  <Input
+                    {...p}
+                    inputMode="numeric"
+                    value={form.birthday_days_before}
+                    onChange={(e) => set("birthday_days_before", e.target.value.replace(/\D/g, "").slice(0, 2))}
+                    placeholder="0"
+                  />
+                )}
+              </Field>
+            </div>
+            <Field label="Mensagem de parabéns" optional hint="Use {nome} para o primeiro nome do cliente e {loja} para o nome da loja. Vazio = mensagem padrão.">
+              {(p) => (
+                <Textarea
+                  {...p}
+                  rows={3}
+                  value={form.birthday_message}
+                  onChange={(e) => set("birthday_message", e.target.value)}
+                  placeholder={DEFAULT_BIRTHDAY_MESSAGE}
+                  maxLength={300}
+                />
+              )}
+            </Field>
+            <p className="rounded-md bg-surface-2 px-4 py-3 text-sm">
+              <span className="font-semibold">Prévia: </span>
+              {birthdayMessage(form.birthday_message, "Maria", form.name.trim() || "loja")}
+            </p>
+          </>
+        )}
       </Card>
     </>
   );

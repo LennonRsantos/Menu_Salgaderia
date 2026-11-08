@@ -83,6 +83,9 @@ const settingsSchema = z.object({
   festive_effects: z.boolean(),
   header_image_url: z.string().nullable(),
   address_zip: z.string().regex(/^\d{8}$/, "CEP inválido.").nullable(),
+  birthday_alert: z.boolean(),
+  birthday_days_before: z.number().int().min(0, "Dias inválidos.").max(30, "Avise no máximo 30 dias antes."),
+  birthday_message: optionalText(300),
 });
 
 export async function saveSettings(input: SettingsInput): Promise<SettingsResult> {
@@ -104,9 +107,10 @@ export async function saveSettings(input: SettingsInput): Promise<SettingsResult
         `insert into store_settings (id, name, tagline, phone, logo_url, delivery_fee, min_order, is_open, opening_hours,
            auto_hours, hours, other_zones, schedule_enabled, schedule_min_hours, schedule_max_days,
            address, delivery_enabled, pickup_enabled, delivery_min, delivery_max, pickup_min, pickup_max, slot_capacity,
-           theme_palette, festive_mode, festive_message, festive_effects, header_image_url, address_zip, updated_at)
+           theme_palette, festive_mode, festive_message, festive_effects, header_image_url, address_zip,
+           birthday_alert, birthday_days_before, birthday_message, updated_at)
          values (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
-           $23, $24, $25, $26, $27, $28, now())
+           $23, $24, $25, $26, $27, $28, $29, $30, $31, now())
          on conflict (id) do update set name = excluded.name, tagline = excluded.tagline, phone = excluded.phone,
            logo_url = excluded.logo_url, delivery_fee = excluded.delivery_fee, min_order = excluded.min_order,
            is_open = excluded.is_open, opening_hours = excluded.opening_hours, auto_hours = excluded.auto_hours,
@@ -117,7 +121,9 @@ export async function saveSettings(input: SettingsInput): Promise<SettingsResult
            pickup_min = excluded.pickup_min, pickup_max = excluded.pickup_max, slot_capacity = excluded.slot_capacity,
            theme_palette = excluded.theme_palette, festive_mode = excluded.festive_mode,
            festive_message = excluded.festive_message, festive_effects = excluded.festive_effects,
-           header_image_url = excluded.header_image_url, address_zip = excluded.address_zip, updated_at = now()
+           header_image_url = excluded.header_image_url, address_zip = excluded.address_zip,
+           birthday_alert = excluded.birthday_alert, birthday_days_before = excluded.birthday_days_before,
+           birthday_message = excluded.birthday_message, updated_at = now()
          returning ${SETTINGS_COLUMNS}`,
         [
           s.name,
@@ -148,6 +154,9 @@ export async function saveSettings(input: SettingsInput): Promise<SettingsResult
           s.festive_effects,
           cleanImageUrl(s.header_image_url),
           s.address_zip,
+          s.birthday_alert,
+          s.birthday_days_before,
+          s.birthday_message,
         ],
       );
 

@@ -1,14 +1,16 @@
 "use client";
 
-import { AlertTriangle, CalendarDays, ChevronRight, CircleDollarSign, Receipt, TrendingUp } from "lucide-react";
+import { AlertTriangle, Cake, CalendarDays, ChevronRight, CircleDollarSign, MessageCircle, Receipt, TrendingUp } from "lucide-react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
+import { buttonClasses } from "@/components/ui/button";
 import { Card, EmptyState, Skeleton } from "@/components/ui/misc";
-import { cn, formatBRL, formatCompactBRL } from "@/lib/format";
+import { birthdayMessage } from "@/lib/customer";
+import { cn, formatBRL, formatCompactBRL, whatsappLink } from "@/lib/format";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useMounted } from "@/lib/use-mounted";
 import { getDashboard, type DashboardResult, type DayPoint, type Metrics, type TopProduct } from "@/actions/dashboard";
@@ -117,6 +119,36 @@ function DashboardContent() {
               <ChevronRight className="size-4" />
             </span>
           </Link>
+        </div>
+      )}
+
+      {extra && extra.birthdays.length > 0 && (
+        <div className="px-4 sm:px-6">
+          <Card className="p-4">
+            <p className="mb-1 flex items-center gap-2 text-sm font-bold">
+              <Cake className="size-4 text-primary" />
+              Aniversariantes
+            </p>
+            <ul className="divide-y divide-border text-sm">
+              {extra.birthdays.map((c) => (
+                <li key={c.phone} className="flex items-center gap-3 py-2">
+                  <span className="min-w-0 flex-1">
+                    <strong>{c.name}</strong> {c.days_left === 0 ? "está de aniversário hoje" : `faz aniversário ${c.days_left === 1 ? "amanhã" : `em ${c.days_left} dias`} (${c.birthday.slice(8, 10)}/${c.birthday.slice(5, 7)})`}
+                  </span>
+                  <a
+                    href={whatsappLink(c.phone, birthdayMessage(extra.birthday_message, c.name, extra.store_name))}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={buttonClasses("soft", "sm", "shrink-0")}
+                    aria-label={`Enviar parabéns para ${c.name} no WhatsApp`}
+                  >
+                    <MessageCircle className="size-4" />
+                    Enviar parabéns
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </Card>
         </div>
       )}
 

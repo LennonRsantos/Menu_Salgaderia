@@ -51,6 +51,11 @@ export interface StoreSettings {
   header_image_url: string | null;
   /** CEP of `address` (8 digits), filled by the lookup in the panel. */
   address_zip: string | null;
+  /** Birthday banner on the Dashboard, from `birthday_days_before` days ahead (0 = only on the day). */
+  birthday_alert: boolean;
+  birthday_days_before: number;
+  /** Congratulation text with {nome} and {loja}; null = default message. */
+  birthday_message: string | null;
 }
 
 export interface DeliveryZone {
