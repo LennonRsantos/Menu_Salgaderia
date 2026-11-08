@@ -20,7 +20,14 @@ function withVerifiedSsl(url: string | undefined) {
 function pool() {
   if (!globalForPool.pgPool) {
     // the dashboard runs about a dozen queries at once; Neon's pooler endpoint takes many more
-    globalForPool.pgPool = new pg.Pool({ connectionString: withVerifiedSsl(process.env.DATABASE_URL), max: 10 });
+    globalForPool.pgPool = new pg.Pool({
+      connectionString: withVerifiedSsl(process.env.DATABASE_URL),
+      max: 10,
+      idleTimeoutMillis: 5_000, // free idle clients fast; many instances share the pooler
+      connectionTimeoutMillis: 10_000, // fail instead of hanging when Neon wakes from scale-to-zero slowly
+    });
+    // an idle client dropped by Neon/PgBouncer emits 'error'; unhandled, it kills the process
+    globalForPool.pgPool.on("error", (e) => console.error("pg pool idle client error", e.message));
     // lets Vercel Fluid compute close idle clients before suspending the function
     attachDatabasePool(globalForPool.pgPool);
   }
