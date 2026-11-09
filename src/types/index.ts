@@ -28,6 +28,8 @@ export interface StoreSettings {
   schedule_enabled: boolean;
   schedule_min_hours: number;
   schedule_max_days: number;
+  /** Days ahead the panel's Encomendas page shows by default. */
+  schedule_view_days: number;
   /** Shown on the menu and to customers picking up. */
   address: string | null;
   delivery_enabled: boolean;

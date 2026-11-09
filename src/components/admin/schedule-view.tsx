@@ -14,8 +14,6 @@ import type { Order, OrderStatus } from "@/types";
 import { OrderDetailSheet } from "./order-detail-sheet";
 import { PageHeader } from "./panel-shell";
 
-const RANGES = [7, 30] as const;
-
 const dayTitle = (date: string, today: string, tomorrow: string) => {
   const label = new Date(`${date}T12:00:00-03:00`).toLocaleDateString("pt-BR", { timeZone: TIME_ZONE, weekday: "long", day: "2-digit", month: "2-digit" });
   const nice = label.charAt(0).toUpperCase() + label.slice(1);
@@ -40,19 +38,27 @@ function productionList(orders: Order[]) {
 }
 
 export function ScheduleView() {
-  const [range, setRange] = useState<(typeof RANGES)[number]>(7);
+  // "config" = the range set in Configurações (viewDays)
+  const [range, setRange] = useState<"week" | "config">("config");
+  const [viewDays, setViewDays] = useState(60);
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [selected, setSelected] = useState<Order | null>(null);
 
   const load = useCallback(async () => {
-    const result = await fetchSchedule(range).catch(() => ({ ok: false as const, error: "Sem conexão. Tente novamente." }));
+    const result = await fetchSchedule(range === "week" ? 7 : null).catch(() => ({ ok: false as const, error: "Sem conexão. Tente novamente." }));
     if (!result.ok) {
       toast.error(result.error);
       setOrders((o) => o ?? []);
       return;
     }
     setOrders(result.orders);
+    setViewDays(result.viewDays);
   }, [range]);
+
+  const ranges = [
+    { id: "week" as const, days: 7 },
+    { id: "config" as const, days: viewDays },
+  ].filter((r) => r.id === "week" || r.days !== 7);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on range change
@@ -98,18 +104,18 @@ export function ScheduleView() {
         }
       />
       <div className="flex gap-2 px-4 pb-4 sm:px-6">
-        {RANGES.map((r) => (
+        {ranges.map((r) => (
           <button
-            key={r}
+            key={r.id}
             type="button"
-            onClick={() => setRange(r)}
-            aria-pressed={range === r}
+            onClick={() => setRange(r.id)}
+            aria-pressed={range === r.id}
             className={cn(
               "h-9 rounded-full border px-3.5 text-sm font-semibold transition-colors",
-              range === r ? "border-primary bg-primary-soft text-primary-soft-foreground" : "border-border-strong bg-surface text-muted-foreground hover:text-foreground",
+              range === r.id ? "border-primary bg-primary-soft text-primary-soft-foreground" : "border-border-strong bg-surface text-muted-foreground hover:text-foreground",
             )}
           >
-            Próximos {r} dias
+            Próximos {r.days} dias
           </button>
         ))}
       </div>

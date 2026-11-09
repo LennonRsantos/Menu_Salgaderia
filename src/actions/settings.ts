@@ -58,6 +58,7 @@ const settingsSchema = z.object({
   schedule_enabled: z.boolean(),
   schedule_min_hours: z.number().int().min(0, "Antecedência inválida.").max(720, "Antecedência máxima: 720 horas."),
   schedule_max_days: z.number().int().min(1, "Informe ao menos 1 dia.").max(180, "Limite máximo: 180 dias."),
+  schedule_view_days: z.number().int().min(1, "Encomendas: informe ao menos 1 dia.").max(180, "Encomendas: limite máximo de 180 dias."),
   zones: z
     .array(z.object({ name: z.string().trim().min(1, "Informe o nome de cada bairro.").max(80), fee: money }))
     .max(200),
@@ -108,9 +109,9 @@ export async function saveSettings(input: SettingsInput): Promise<SettingsResult
            auto_hours, hours, other_zones, schedule_enabled, schedule_min_hours, schedule_max_days,
            address, delivery_enabled, pickup_enabled, delivery_min, delivery_max, pickup_min, pickup_max, slot_capacity,
            theme_palette, festive_mode, festive_message, festive_effects, header_image_url, address_zip,
-           birthday_alert, birthday_days_before, birthday_message, updated_at)
+           birthday_alert, birthday_days_before, birthday_message, schedule_view_days, updated_at)
          values (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
-           $23, $24, $25, $26, $27, $28, $29, $30, $31, now())
+           $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, now())
          on conflict (id) do update set name = excluded.name, tagline = excluded.tagline, phone = excluded.phone,
            logo_url = excluded.logo_url, delivery_fee = excluded.delivery_fee, min_order = excluded.min_order,
            is_open = excluded.is_open, opening_hours = excluded.opening_hours, auto_hours = excluded.auto_hours,
@@ -123,7 +124,7 @@ export async function saveSettings(input: SettingsInput): Promise<SettingsResult
            festive_message = excluded.festive_message, festive_effects = excluded.festive_effects,
            header_image_url = excluded.header_image_url, address_zip = excluded.address_zip,
            birthday_alert = excluded.birthday_alert, birthday_days_before = excluded.birthday_days_before,
-           birthday_message = excluded.birthday_message, updated_at = now()
+           birthday_message = excluded.birthday_message, schedule_view_days = excluded.schedule_view_days, updated_at = now()
          returning ${SETTINGS_COLUMNS}`,
         [
           s.name,
@@ -157,6 +158,7 @@ export async function saveSettings(input: SettingsInput): Promise<SettingsResult
           s.birthday_alert,
           s.birthday_days_before,
           s.birthday_message,
+          s.schedule_view_days,
         ],
       );
 

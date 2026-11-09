@@ -45,6 +45,7 @@ const EMPTY: StoreSettings = {
   schedule_enabled: false,
   schedule_min_hours: 24,
   schedule_max_days: 60,
+  schedule_view_days: 60,
   address: null,
   delivery_enabled: true,
   pickup_enabled: true,
@@ -117,6 +118,7 @@ const formFrom = (initial: StoreSettings) => ({
   schedule_enabled: initial.schedule_enabled,
   schedule_min_hours: String(initial.schedule_min_hours),
   schedule_max_days: String(initial.schedule_max_days),
+  schedule_view_days: String(initial.schedule_view_days),
   slot_capacity: initial.slot_capacity === null ? "" : String(initial.slot_capacity),
   special_dates: initial.special_dates.map((d) => ({ key: `${d.date}-${d.title}`, date: d.date, title: d.title })),
   address: initial.address ?? "",
@@ -168,6 +170,7 @@ const TAB_FIELDS: Record<SettingsTab, (keyof Form)[]> = {
     "schedule_enabled",
     "schedule_min_hours",
     "schedule_max_days",
+    "schedule_view_days",
     "slot_capacity",
     "special_dates",
   ],
@@ -292,6 +295,8 @@ function SettingsForm({ initial }: { initial: StoreSettings }) {
       return { tab: "pedidos", message: "Revise o nome e a taxa de cada bairro." };
     }
     if (!Number.isInteger(minHours) || minHours < 0 || !Number.isInteger(maxDays) || maxDays < 1) return { tab: "pedidos", message: "Revise as regras de encomenda." };
+    const viewDays = Number(form.schedule_view_days);
+    if (!Number.isInteger(viewDays) || viewDays < 1 || viewDays > 180) return { tab: "pedidos", message: "Encomendas: mostre de 1 a 180 dias." };
     if (!form.delivery_enabled && !form.pickup_enabled) return { tab: "pedidos", message: "Ative a entrega ou a retirada." };
     if (form.special_dates.some((d) => !d.date || !d.title.trim())) return { tab: "pedidos", message: "Preencha a data e o nome de cada data especial." };
     if ((eta.delivery_min !== null && eta.delivery_max !== null && eta.delivery_max < eta.delivery_min) || (eta.pickup_min !== null && eta.pickup_max !== null && eta.pickup_max < eta.pickup_min)) {
@@ -324,6 +329,7 @@ function SettingsForm({ initial }: { initial: StoreSettings }) {
         schedule_enabled: form.schedule_enabled,
         schedule_min_hours: Number(form.schedule_min_hours),
         schedule_max_days: Number(form.schedule_max_days),
+        schedule_view_days: Number(form.schedule_view_days),
         address: form.address.trim() || null,
         address_zip: onlyDigits(form.address_zip).length === 8 ? onlyDigits(form.address_zip) : null,
         delivery_enabled: form.delivery_enabled,
@@ -833,6 +839,9 @@ function OrdersTab({ form, set, onGoProfile }: TabProps & { onGoProfile: () => v
             </Field>
             <Field label="Clientes podem reservar até (dias antes)" hint={agendaEnd(form.schedule_max_days)}>
               {(p) => <Input {...p} inputMode="numeric" value={form.schedule_max_days} onChange={(e) => set("schedule_max_days", e.target.value.replace(/\D/g, ""))} />}
+            </Field>
+            <Field label="Encomendas: mostrar próximos (dias)" hint="Período exibido na tela Encomendas do painel.">
+              {(p) => <Input {...p} inputMode="numeric" value={form.schedule_view_days} onChange={(e) => set("schedule_view_days", e.target.value.replace(/\D/g, "").slice(0, 3))} />}
             </Field>
             <Field label="Pedidos por horário" optional hint="Vazio = sem limite. Cada horário dura 30 minutos; cheio, aparece como lotado.">
               {(p) => (

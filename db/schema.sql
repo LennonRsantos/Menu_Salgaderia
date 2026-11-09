@@ -371,3 +371,7 @@ alter table store_settings add column if not exists birthday_alert boolean not n
 alter table store_settings add column if not exists birthday_days_before int not null default 0
   check (birthday_days_before between 0 and 30);
 alter table store_settings add column if not exists birthday_message text;
+
+-- Days ahead the panel's Encomendas page shows by default (1..180).
+alter table store_settings add column if not exists schedule_view_days int not null default 60
+  check (schedule_view_days between 1 and 180);

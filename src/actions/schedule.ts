@@ -5,13 +5,19 @@ import { query } from "@/lib/db";
 import { ORDER_COLUMNS, orderFromRow } from "@/lib/orders";
 import type { Order } from "@/types";
 
-export type ScheduleResult = { ok: true; orders: Order[] } | { ok: false; error: string };
+/** viewDays: the range set in Configurações (schedule_view_days). */
+export type ScheduleResult = { ok: true; orders: Order[]; viewDays: number } | { ok: false; error: string };
 
-/** Scheduled orders from today (São Paulo time) up to `days` ahead, cancelled ones left out. */
-export async function fetchSchedule(days: number): Promise<ScheduleResult> {
+/**
+ * Scheduled orders from today (São Paulo time) up to `days` ahead, cancelled ones left out.
+ * `days` null = the range set in Configurações.
+ */
+export async function fetchSchedule(days: number | null): Promise<ScheduleResult> {
   try {
     await requireStaff();
-    const range = Math.min(Math.max(Math.floor(days) || 7, 1), 180);
+    const [settings] = await query<{ schedule_view_days: number }>("select schedule_view_days from store_settings where id = 1");
+    const viewDays = Number(settings?.schedule_view_days ?? 60);
+    const range = Math.min(Math.max(Math.floor(days ?? viewDays) || 7, 1), 180);
     const rows = await query(
       `select ${ORDER_COLUMNS} from orders
         where scheduled_for is not null and status <> 'cancelled'
@@ -20,7 +26,7 @@ export async function fetchSchedule(days: number): Promise<ScheduleResult> {
         order by scheduled_for, code`,
       [range],
     );
-    return { ok: true, orders: rows.map(orderFromRow) };
+    return { ok: true, orders: rows.map(orderFromRow), viewDays };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erro ao carregar as encomendas." };
   }
