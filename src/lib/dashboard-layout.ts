@@ -27,6 +27,7 @@ export const WIDGET = widgets({
   kpi_range: { label: "Vendas no período", hint: "Nos últimos 7, 30 ou 90 dias.", kind: "tile", part: "metrics" },
   kpi_ticket: { label: "Ticket médio", hint: "Valor médio por pedido no período.", kind: "tile", part: "metrics" },
   open_orders: { label: "Pedidos em andamento", hint: "Alerta com os pedidos ainda abertos.", kind: "alert", part: "metrics" },
+  scheduled: { label: "Encomendas pendentes", hint: "Alerta com as encomendas agendadas ainda não concluídas.", kind: "alert", part: "metrics" },
   cash: { label: "Fechamento de caixa", hint: "Recebido por forma de pagamento, dia a dia.", kind: "card" },
   profit: { label: "Lucro", hint: "Vendas menos custos e despesas, e margem por produto.", kind: "card", part: "profit" },
   sales_chart: { label: "Vendas por dia", hint: "Gráfico do faturamento no período.", kind: "card", part: "series" },

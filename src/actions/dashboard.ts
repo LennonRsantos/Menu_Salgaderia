@@ -22,6 +22,9 @@ export interface Metrics {
   prev_range_revenue: number;
   prev_range_orders: number;
   open_orders: number;
+  /** Scheduled orders from today on, not yet completed or cancelled. */
+  scheduled_pending: number;
+  scheduled_today: number;
   /** Stock items at or below their minimum (including empty ones). */
   low_stock: number;
   out_of_stock: number;
@@ -146,6 +149,10 @@ export async function getDashboard(days: number, parts: readonly string[] = PART
            count(*) filter (where ${local("created_at")} >= ${START} - $1::int * interval '1 day'
                               and ${local("created_at")} < ${START}) as prev_range_orders,
            (select count(*) from orders where status in ('new', 'preparing', 'out_for_delivery')) as open_orders,
+           (select count(*) from orders where status in ('new', 'preparing', 'out_for_delivery')
+               and ${local("scheduled_for")} >= date_trunc('day', ${LOCAL})) as scheduled_pending,
+           (select count(*) from orders where status in ('new', 'preparing', 'out_for_delivery')
+               and date_trunc('day', ${local("scheduled_for")}) = date_trunc('day', ${LOCAL})) as scheduled_today,
            (select count(*) from stock_items where quantity <= min_quantity or quantity <= 0) as low_stock,
            (select count(*) from stock_items where quantity <= 0) as out_of_stock
          from orders where status <> 'cancelled'`,

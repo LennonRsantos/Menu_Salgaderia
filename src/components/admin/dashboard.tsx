@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Cake, CalendarDays, ChevronRight, CircleDollarSign, MessageCircle, Receipt, SlidersHorizontal, TrendingUp } from "lucide-react";
+import { AlertTriangle, Cake, CalendarClock, CalendarDays, ChevronRight, CircleDollarSign, MessageCircle, Receipt, SlidersHorizontal, TrendingUp } from "lucide-react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -365,6 +365,20 @@ function DashboardContent() {
               {metrics.open_orders} {metrics.open_orders === 1 ? "pedido em andamento" : "pedidos em andamento"}
             </span>
             <span>Abrir pedidos →</span>
+          </Link>
+        ) : null;
+      case "scheduled":
+        return metrics && metrics.scheduled_pending > 0 ? (
+          <Link
+            href="/admin/encomendas"
+            className="flex items-center justify-between gap-3 rounded-lg bg-primary-soft px-4 py-3 text-sm font-semibold text-primary-soft-foreground hover:bg-primary-soft-hover"
+          >
+            <span className="flex items-center gap-2">
+              <CalendarClock className="size-4 shrink-0" />
+              {metrics.scheduled_pending} {metrics.scheduled_pending === 1 ? "encomenda pendente" : "encomendas pendentes"}
+              {metrics.scheduled_today > 0 && ` · ${metrics.scheduled_today} para hoje`}
+            </span>
+            <span>Ver encomendas →</span>
           </Link>
         ) : null;
       case "cash":
