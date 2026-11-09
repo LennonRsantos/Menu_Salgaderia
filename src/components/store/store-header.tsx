@@ -162,6 +162,7 @@ export function StoreHeader({ settings, theme = DEFAULT_THEME }: { settings: Sto
           )}
           <Link
             href="/conta"
+            data-tour="conta"
             className="inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm font-semibold hover:bg-surface-2"
             aria-label={firstName ? `Minha conta, ${firstName}` : "Entrar ou criar conta"}
           >
@@ -263,6 +264,7 @@ export function StoreHeader({ settings, theme = DEFAULT_THEME }: { settings: Sto
           <button
             type="button"
             onClick={() => openReservation(true)}
+            data-tour="reservar"
             className="flex w-full items-center justify-center gap-2 rounded-md border border-accent bg-accent-soft px-4 py-2.5 text-sm font-semibold transition-colors hover:brightness-95 sm:w-auto sm:self-start dark:hover:brightness-125"
           >
             <CalendarClock className="size-4" />

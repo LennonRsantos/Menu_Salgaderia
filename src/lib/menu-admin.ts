@@ -29,6 +29,7 @@ export interface ProductDraft {
   is_visible: boolean;
   is_available: boolean;
   position: number;
+  sale_unit: string | null;
   groups: GroupDraft[];
   stock: StockLinkDraft[];
 }

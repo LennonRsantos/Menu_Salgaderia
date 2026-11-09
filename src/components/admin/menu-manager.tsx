@@ -8,7 +8,7 @@ import { Badge, Card, EmptyState, Skeleton } from "@/components/ui/misc";
 import { ConfirmDialog } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { ProductImage } from "@/components/store/product-card";
-import { cn, formatBRL, normalizeSearch } from "@/lib/format";
+import { cn, formatBRL, normalizeSearch, priceLabel } from "@/lib/format";
 import {
   createCategory,
   deleteCategory,
@@ -32,7 +32,7 @@ const MENU_CATEGORY_API: CategoryApi = {
   setActive: (id, is_active) => updateCategory(id, { is_active }),
 };
 
-type MenuData = { categories: Category[]; products: Product[]; links: StockLink[]; stockItems: StockOption[] };
+type MenuData = { categories: Category[]; products: Product[]; links: StockLink[]; stockItems: StockOption[]; saleUnits: string[] };
 
 export function MenuManager() {
   const [data, setData] = useState<MenuData | null>(null);
@@ -50,7 +50,7 @@ export function MenuManager() {
       setData(result.data);
     } else {
       toast.error(result.error);
-      setData((d) => d ?? { categories: [], products: [], links: [], stockItems: [] });
+      setData((d) => d ?? { categories: [], products: [], links: [], stockItems: [], saleUnits: [] });
     }
   }, []);
 
@@ -206,7 +206,7 @@ export function MenuManager() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold">{p.name}</p>
                       <div className="flex flex-wrap items-center gap-1.5 text-sm">
-                        <span className="font-semibold tabular-nums">{formatBRL(p.price)}</span>
+                        <span className="font-semibold tabular-nums">{priceLabel(p.price, p.sale_unit)}</span>
                         {p.addon_groups.length > 0 && (
                           <span className="text-xs text-muted-foreground">
                             · {p.addon_groups.length} {p.addon_groups.length === 1 ? "grupo" : "grupos"} de adicionais
@@ -255,6 +255,7 @@ export function MenuManager() {
             categories={data.categories}
             links={editing ? data.links.filter((l) => l.product_id === editing.id) : []}
             stockItems={data.stockItems}
+            saleUnits={data.saleUnits}
             defaultCategoryId={defaultCategoryId}
             nextPosition={nextPosition}
             onClose={() => setFormOpen(false)}

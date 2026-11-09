@@ -1,5 +1,5 @@
 import "server-only";
-import type { Profile } from "@/types";
+import type { DashboardLayout, Profile } from "@/types";
 import { iso, query, transaction } from "./db";
 import { neonAuth } from "./neon-auth";
 
@@ -12,6 +12,8 @@ type StaffRow = {
   created_at: Date;
   nav_pins?: string[] | null;
   avatar_url?: string | null;
+  tour_done_at?: Date | null;
+  dashboard_layout?: DashboardLayout | null;
 };
 
 export function profileFromRow(r: StaffRow): Profile {
@@ -24,6 +26,8 @@ export function profileFromRow(r: StaffRow): Profile {
     created_at: iso(r.created_at) ?? "",
     nav_pins: r.nav_pins ?? null,
     avatar_url: r.avatar_url ?? null,
+    tour_done_at: iso(r.tour_done_at ?? null),
+    dashboard_layout: r.dashboard_layout ?? null,
   };
 }
 

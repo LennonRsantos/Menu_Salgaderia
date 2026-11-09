@@ -36,6 +36,7 @@ function toForm(product: Product | null, categoryId: string, nextPosition: numbe
     is_visible: product?.is_visible ?? true,
     is_available: product?.is_available ?? true,
     position: product?.position ?? nextPosition,
+    sale_unit: product?.sale_unit ?? "",
     groups: (product?.addon_groups ?? []).map<GroupForm>((g) => ({
       key: g.id,
       id: g.id,
@@ -55,6 +56,7 @@ export function ProductFormSheet({
   categories,
   links,
   stockItems,
+  saleUnits,
   defaultCategoryId,
   nextPosition,
   onClose,
@@ -65,6 +67,7 @@ export function ProductFormSheet({
   categories: Category[];
   links: StockLink[];
   stockItems: StockOption[];
+  saleUnits: string[];
   defaultCategoryId: string;
   nextPosition: number;
   onClose: () => void;
@@ -79,6 +82,7 @@ export function ProductFormSheet({
           categories={categories}
           links={links}
           stockItems={stockItems}
+          saleUnits={saleUnits}
           defaultCategoryId={defaultCategoryId}
           nextPosition={nextPosition}
           onCancel={onClose}
@@ -94,6 +98,7 @@ function ProductForm({
   categories,
   links,
   stockItems,
+  saleUnits,
   defaultCategoryId,
   nextPosition,
   onCancel,
@@ -103,6 +108,7 @@ function ProductForm({
   categories: Category[];
   links: StockLink[];
   stockItems: StockOption[];
+  saleUnits: string[];
   defaultCategoryId: string;
   nextPosition: number;
   onCancel: () => void;
@@ -191,6 +197,7 @@ function ProductForm({
       is_visible: form.is_visible,
       is_available: form.is_available,
       position: form.position,
+      sale_unit: form.sale_unit || null,
       groups,
       stock,
     };
@@ -263,6 +270,19 @@ function ProductForm({
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          <Field label="Vendido por" optional hint="Unidades em Configurações > Cardápio.">
+            {(p) => (
+              <Select {...p} value={form.sale_unit} onChange={(e) => set("sale_unit", e.target.value)}>
+                <option value="">—</option>
+                {/* a saved unit no longer in the list still shows */}
+                {[...new Set([...saleUnits, ...(form.sale_unit ? [form.sale_unit] : [])])].map((u) => (
+                  <option key={u} value={u}>
+                    {u}
                   </option>
                 ))}
               </Select>

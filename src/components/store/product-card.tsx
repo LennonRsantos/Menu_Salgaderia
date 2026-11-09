@@ -1,7 +1,7 @@
 "use client";
 
 import { Croissant, Plus } from "lucide-react";
-import { cn, formatBRL } from "@/lib/format";
+import { cn, priceLabel } from "@/lib/format";
 import type { Product } from "@/types";
 
 export function ProductImage({ product, className }: { product: Pick<Product, "image_url" | "name">; className?: string }) {
@@ -39,7 +39,7 @@ export function ProductCard({ product, onSelect }: { product: Product; onSelect:
         "group flex w-full items-stretch gap-3 rounded-lg border border-border bg-surface p-3 text-left shadow-sm transition-[border-color,box-shadow,transform] duration-150",
         soldOut ? "cursor-not-allowed" : "hover:border-primary/40 hover:shadow-md active:scale-[0.99]",
       )}
-      aria-label={`${product.name}, ${formatBRL(product.price)}${soldOut ? ", esgotado" : product.stock_out ? ", só por encomenda" : ""}`}
+      aria-label={`${product.name}, ${priceLabel(product.price, product.sale_unit)}${soldOut ? ", esgotado" : product.stock_out ? ", só por encomenda" : ""}`}
     >
       <div className={cn("flex min-w-0 flex-1 flex-col gap-1 py-0.5", soldOut && "opacity-60")}>
         <h3 className="font-semibold leading-snug">{product.name}</h3>
@@ -47,7 +47,7 @@ export function ProductCard({ product, onSelect }: { product: Product; onSelect:
         <div className="mt-auto flex items-center gap-2 pt-2">
           <span className="font-bold tabular-nums">
             {fromPrice && <span className="mr-1 text-xs font-medium text-muted-foreground">a partir de</span>}
-            {formatBRL(product.price)}
+            {priceLabel(product.price, product.sale_unit)}
           </span>
           {soldOut && (
             <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-semibold text-muted-foreground">Esgotado</span>

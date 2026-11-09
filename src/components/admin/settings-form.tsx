@@ -64,6 +64,7 @@ const EMPTY: StoreSettings = {
   birthday_alert: true,
   birthday_days_before: 0,
   birthday_message: null,
+  sale_units: ["unidade", "dezena", "centena"],
 };
 
 function SettingsLoader() {
@@ -137,23 +138,27 @@ const formFrom = (initial: StoreSettings) => ({
   birthday_alert: initial.birthday_alert,
   birthday_days_before: String(initial.birthday_days_before),
   birthday_message: initial.birthday_message ?? "",
+  sale_units: initial.sale_units,
 });
 
 type Form = ReturnType<typeof formFrom>;
 type SetField = <K extends keyof Form>(k: K, v: Form[K]) => void;
 
-type SettingsTab = "perfil" | "aparencia" | "horario" | "pedidos";
+type SettingsTab = "perfil" | "aparencia" | "horario" | "pedidos" | "cardapio" | "clientes";
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: "perfil", label: "Perfil" },
   { id: "aparencia", label: "Aparência" },
   { id: "horario", label: "Horário" },
   { id: "pedidos", label: "Pedidos" },
+  { id: "cardapio", label: "Cardápio" },
+  { id: "clientes", label: "Clientes" },
 ];
 
 /** Which fields each tab edits; the open/closed switch saves on its own, so it is in none. */
 const TAB_FIELDS: Record<SettingsTab, (keyof Form)[]> = {
-  perfil: ["name", "tagline", "phone", "logo_url", "address", "address_zip", "birthday_alert", "birthday_days_before", "birthday_message"],
+  perfil: ["name", "tagline", "phone", "logo_url", "address", "address_zip"],
+  clientes: ["birthday_alert", "birthday_days_before", "birthday_message"],
   aparencia: ["theme_palette", "festive_mode", "festive_message", "festive_effects", "header_image_url"],
   horario: ["opening_hours", "auto_hours", "days"],
   pedidos: [
@@ -174,6 +179,7 @@ const TAB_FIELDS: Record<SettingsTab, (keyof Form)[]> = {
     "slot_capacity",
     "special_dates",
   ],
+  cardapio: ["sale_units"],
 };
 
 // list keys are only for React; what counts is the content
@@ -288,7 +294,7 @@ function SettingsForm({ initial }: { initial: StoreSettings }) {
       return { tab: "aparencia", message: "O link da imagem de fundo deve começar com https://" };
     }
     const birthdayDays = Number(form.birthday_days_before || "0");
-    if (!Number.isInteger(birthdayDays) || birthdayDays < 0 || birthdayDays > 30) return { tab: "perfil", message: "Avise os aniversários de 0 a 30 dias antes." };
+    if (!Number.isInteger(birthdayDays) || birthdayDays < 0 || birthdayDays > 30) return { tab: "clientes", message: "Avise os aniversários de 0 a 30 dias antes." };
     if (form.auto_hours && hours.length === 0) return { tab: "horario", message: "Marque ao menos um dia de funcionamento." };
     if (!Number.isFinite(fee) || fee < 0 || !Number.isFinite(min) || min < 0) return { tab: "pedidos", message: "Revise os valores." };
     if (form.zones.some((z) => !z.name.trim() || !Number.isFinite(parseMoney(z.fee || "0")) || parseMoney(z.fee || "0") < 0)) {
@@ -299,6 +305,7 @@ function SettingsForm({ initial }: { initial: StoreSettings }) {
     if (!Number.isInteger(viewDays) || viewDays < 1 || viewDays > 180) return { tab: "pedidos", message: "Encomendas: mostre de 1 a 180 dias." };
     if (!form.delivery_enabled && !form.pickup_enabled) return { tab: "pedidos", message: "Ative a entrega ou a retirada." };
     if (form.special_dates.some((d) => !d.date || !d.title.trim())) return { tab: "pedidos", message: "Preencha a data e o nome de cada data especial." };
+    if (form.sale_units.some((u) => !u.trim())) return { tab: "cardapio", message: "Dê um nome a cada unidade." };
     if ((eta.delivery_min !== null && eta.delivery_max !== null && eta.delivery_max < eta.delivery_min) || (eta.pickup_min !== null && eta.pickup_max !== null && eta.pickup_max < eta.pickup_min)) {
       return { tab: "pedidos", message: "Nos tempos, o máximo deve ser maior que o mínimo." };
     }
@@ -345,6 +352,7 @@ function SettingsForm({ initial }: { initial: StoreSettings }) {
         birthday_alert: form.birthday_alert,
         birthday_days_before: Number(form.birthday_days_before || "0"),
         birthday_message: form.birthday_message.trim() || null,
+        sale_units: form.sale_units.map((u) => u.trim()),
       });
       setForm((f) => ({ ...f, zones: saved.current.zones.map((z) => ({ key: z.id, name: z.name, fee: money(z.fee) })) }));
       setBaseline(form);
@@ -401,7 +409,9 @@ function SettingsForm({ initial }: { initial: StoreSettings }) {
           )}
           {tab === "aparencia" && <AppearanceTab form={form} set={set} theme={theme} />}
           {tab === "horario" && <HoursTab form={form} set={set} hours={hours} />}
+          {tab === "cardapio" && <MenuTab form={form} set={set} />}
           {tab === "pedidos" && <OrdersTab form={form} set={set} onGoProfile={() => openTab("perfil")} />}
+          {tab === "clientes" && <CustomersTab form={form} set={set} />}
         </div>
 
         {/* phones and tablets: a full-width bar above the bottom navigation; desktop: plain button at the end */}
@@ -537,7 +547,13 @@ function ProfileTab({
           </Field>
         </div>
       </Card>
+    </>
+  );
+}
 
+function CustomersTab({ form, set }: TabProps) {
+  return (
+    <>
       <Card className="space-y-4 p-5">
         <SectionTitle title="Aniversariantes" description="Aviso no Dashboard com botão para enviar parabéns no WhatsApp do cliente. Vale para clientes com conta e data de nascimento." />
         <div className="rounded-md bg-surface-2 px-4 py-1">
@@ -717,6 +733,48 @@ function HoursTab({ form, set, hours }: TabProps & { hours: OpeningHours[] }) {
         <p className="text-sm text-muted-foreground">
           No cardápio: <strong className="text-foreground">{hoursLabel(hours)}</strong>
         </p>
+      )}
+    </Card>
+  );
+}
+
+function MenuTab({ form, set }: TabProps) {
+  const units = form.sale_units;
+  return (
+    <Card className="space-y-4 p-5">
+      <SectionTitle title="Unidades de venda" description="Escolha uma no cadastro de cada produto. O cardápio mostra o preço assim: R$ 12,00 / dezena." />
+      {units.length === 0 && (
+        <p className="rounded-md border border-dashed border-border-strong px-4 py-4 text-center text-sm text-muted-foreground">Nenhuma unidade.</p>
+      )}
+      <ul className="space-y-2">
+        {units.map((u, i) => (
+          <li key={i} className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <Input
+                aria-label="Unidade"
+                value={u}
+                maxLength={30}
+                onChange={(e) => set("sale_units", units.map((x, j) => (j === i ? e.target.value : x)))}
+                placeholder="Ex.: meio cento"
+                className="h-10"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => set("sale_units", units.filter((_, j) => j !== i))}
+              className="grid size-9 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-danger-soft hover:text-danger-soft-foreground"
+              aria-label={`Remover ${u || "unidade"}`}
+            >
+              <X className="size-4" />
+            </button>
+          </li>
+        ))}
+      </ul>
+      {units.length < 20 && (
+        <Button variant="soft" size="sm" onClick={() => set("sale_units", [...units, ""])}>
+          <Plus className="size-4" />
+          Unidade
+        </Button>
       )}
     </Card>
   );

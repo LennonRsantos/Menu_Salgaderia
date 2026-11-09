@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/field";
 import { QuantityStepper } from "@/components/ui/misc";
 import { Sheet } from "@/components/ui/sheet";
 import { useCart } from "@/lib/cart-store";
-import { cn, formatBRL } from "@/lib/format";
+import { cn, formatBRL, priceLabel } from "@/lib/format";
 import type { AddonGroup, Product } from "@/types";
 import { ProductImage } from "./product-card";
 
@@ -85,7 +85,7 @@ function ProductCustomizer({ product, onDone }: { product: Product; onDone: () =
       <div className="space-y-2 px-5 pt-5 pb-4">
         <h3 className="text-2xl font-bold tracking-tight">{product.name}</h3>
         {product.description && <p className="text-muted-foreground">{product.description}</p>}
-        <p className="text-lg font-bold tabular-nums">{formatBRL(product.price)}</p>
+        <p className="text-lg font-bold tabular-nums">{priceLabel(product.price, product.sale_unit)}</p>
         {product.stock_out && (
           <p className="rounded-md bg-accent-soft px-3 py-2 text-sm">
             <strong>Esgotado hoje.</strong> Você pode encomendar para outro dia: escolha a data ao finalizar o pedido.

@@ -1,10 +1,12 @@
 "use server";
 
+import type { QueryResultRow } from "pg";
 import { requireAdmin } from "@/lib/auth";
 import { variableCost } from "@/lib/costs";
 import { loadInputPrices, loadRecipes } from "@/lib/costs-db";
+import { layoutError, PARTS, resolveLayout, type Part } from "@/lib/dashboard-layout";
 import { query } from "@/lib/db";
-import type { PaymentMethod } from "@/types";
+import type { DashboardLayout, PaymentMethod } from "@/types";
 
 export interface Metrics {
   today_revenue: number;
@@ -86,23 +88,24 @@ export interface BirthdayRow {
   days_left: number;
 }
 
-export type DashboardResult =
-  | {
-      ok: true;
-      metrics: Metrics;
-      series: DayPoint[];
-      top: TopProduct[];
-      profit: Profit;
-      heat: HeatCell[];
-      times: Times;
-      customers: Customers;
-      neighborhoods: Neighborhood[];
-      store_name: string;
-      /** Customers with a birthday within the window set in the panel; empty when the alert is off. */
-      birthdays: BirthdayRow[];
-      birthday_message: string | null;
-    }
-  | { ok: false; error: string };
+/** What the Dashboard shows. A part that was not asked for comes back null. */
+export interface DashboardData {
+  metrics: Metrics | null;
+  series: DayPoint[] | null;
+  top: TopProduct[] | null;
+  profit: Profit | null;
+  heat: HeatCell[] | null;
+  times: Times | null;
+  customers: Customers | null;
+  neighborhoods: Neighborhood[] | null;
+  /** Loaded with the customers or the birthdays. */
+  store_name: string | null;
+  /** Customers with a birthday within the window set in the panel; empty when the alert is off. */
+  birthdays: BirthdayRow[] | null;
+  birthday_message: string | null;
+}
+
+export type DashboardResult = { ok: true; data: DashboardData } | { ok: false; error: string };
 
 // All day boundaries use the store's time zone.
 const LOCAL = "(now() at time zone 'America/Sao_Paulo')";
@@ -111,14 +114,22 @@ const local = (column: string) => `(${column} at time zone 'America/Sao_Paulo')`
 const START = `(date_trunc('day', ${LOCAL}) - ($1::int - 1) * interval '1 day')`;
 const IN_RANGE = (column: string) => `${local(column)} >= ${START}`;
 
-/** Admin only. Sales exclude cancelled orders. */
-export async function getDashboard(days: number): Promise<DashboardResult> {
+/**
+ * Admin only. Sales exclude cancelled orders. Only the `parts` asked for are
+ * queried (the blocks each manager shows); the others come back null.
+ */
+export async function getDashboard(days: number, parts: readonly string[] = PARTS): Promise<DashboardResult> {
   try {
     await requireAdmin();
     const range = Math.min(Math.max(Math.floor(days) || 30, 1), 365);
+    const want = new Set(parts.filter((p): p is Part => (PARTS as readonly string[]).includes(p)));
+    const has = (p: Part) => want.has(p);
+    // a part nobody shows skips its query and gets no rows
+    const part = <T extends QueryResultRow>(p: Part, text: string, params: unknown[]) => (has(p) ? query<T>(text, params) : Promise.resolve<T[]>([]));
 
     const [[m], series, top, [profit], margins, heat, [times], [customerCounts], topCustomers, lost, neighborhoods, [store], birthdays] = await Promise.all([
-      query<Metrics>(
+      part<Metrics>(
+        "metrics",
         `select
            coalesce(sum(total) filter (where ${local("created_at")} >= date_trunc('day', ${LOCAL})), 0) as today_revenue,
            count(*) filter (where ${local("created_at")} >= date_trunc('day', ${LOCAL})) as today_orders,
@@ -140,14 +151,16 @@ export async function getDashboard(days: number): Promise<DashboardResult> {
          from orders where status <> 'cancelled'`,
         [range],
       ),
-      query<DayPoint>(
+      part<DayPoint>(
+        "series",
         `select to_char(d, 'YYYY-MM-DD') as day, coalesce(sum(o.total), 0) as revenue, count(o.id) as orders
          from generate_series(${START}, date_trunc('day', ${LOCAL}), interval '1 day') d
          left join orders o on o.status <> 'cancelled' and date_trunc('day', ${local("o.created_at")}) = d
          group by d order by d`,
         [range],
       ),
-      query<TopProduct>(
+      part<TopProduct>(
+        "top",
         `select i->>'product_name' as product_name, sum((i->>'quantity')::int) as quantity, sum((i->>'line_total')::numeric) as revenue
          from orders o, jsonb_array_elements(o.items) i
          where o.status <> 'cancelled' and ${IN_RANGE("o.created_at")}
@@ -156,7 +169,8 @@ export async function getDashboard(days: number): Promise<DashboardResult> {
       ),
       // cost of goods at the cost of the moment: the item costs kept in the order
       // (fichas técnicas), or, for older orders, what the sale took from stock
-      query<Omit<Profit, "margins">>(
+      part<Omit<Profit, "margins">>(
+        "profit",
         `with sold as (
            -- coupon discounts come off the products' revenue
            select o.subtotal - o.discount as subtotal,
@@ -175,15 +189,17 @@ export async function getDashboard(days: number): Promise<DashboardResult> {
            from sold`,
         [range],
       ),
-      productMargins(),
-      query<HeatCell>(
+      has("profit") ? productMargins() : Promise.resolve([]),
+      part<HeatCell>(
+        "heat",
         `select extract(dow from ${local("created_at")})::int as dow, extract(hour from ${local("created_at")})::int as hour, count(*) as orders
            from orders where status <> 'cancelled' and ${IN_RANGE("created_at")}
           group by 1, 2`,
         [range],
       ),
       // scheduled orders wait for their date by design, so they stay out of the service times
-      query<Times>(
+      part<Times>(
+        "times",
         `select
            round(avg(extract(epoch from accepted_at - created_at)) filter (where scheduled_for is null and accepted_at is not null) / 60) as accept_min,
            round(avg(extract(epoch from dispatched_at - accepted_at)) filter (where scheduled_for is null and dispatched_at is not null and accepted_at is not null) / 60) as prep_min,
@@ -194,7 +210,8 @@ export async function getDashboard(days: number): Promise<DashboardResult> {
          from orders where ${IN_RANGE("created_at")}`,
         [range],
       ),
-      query<{ new_count: number; returning_count: number }>(
+      part<{ new_count: number; returning_count: number }>(
+        "customers",
         `with firsts as (select customer_phone, min(created_at) as first_at from orders where status <> 'cancelled' group by 1),
               buyers as (select distinct customer_phone from orders where status <> 'cancelled' and ${IN_RANGE("created_at")})
          select count(*) filter (where ${local("f.first_at")} >= ${START}) as new_count,
@@ -202,22 +219,26 @@ export async function getDashboard(days: number): Promise<DashboardResult> {
            from buyers b join firsts f using (customer_phone)`,
         [range],
       ),
-      query<CustomerRow>(
+      part<CustomerRow>(
+        "customers",
         `select (array_agg(customer_name order by created_at desc))[1] as name, customer_phone as phone,
                 count(*) as orders, sum(total) as total, max(created_at) as last_order
            from orders where status <> 'cancelled' and ${IN_RANGE("created_at")}
           group by customer_phone order by total desc, orders desc limit 5`,
         [range],
       ),
-      query<CustomerRow>(
+      part<CustomerRow>(
+        "customers",
         `select (array_agg(customer_name order by created_at desc))[1] as name, customer_phone as phone,
                 count(*) as orders, sum(total) as total, max(created_at) as last_order
            from orders where status <> 'cancelled'
           group by customer_phone
          having count(*) >= 2 and max(created_at) < now() - interval '30 days'
           order by total desc limit 8`,
+        [],
       ),
-      query<Neighborhood>(
+      part<Neighborhood>(
+        "neighborhoods",
         `select (array_agg(address->>'neighborhood' order by created_at desc))[1] as name, count(*) as orders, sum(total) as revenue
            from orders
           where status <> 'cancelled' and fulfillment = 'delivery' and ${IN_RANGE("created_at")}
@@ -226,9 +247,12 @@ export async function getDashboard(days: number): Promise<DashboardResult> {
           order by orders desc, revenue desc limit 8`,
         [range],
       ),
-      query<{ name: string; birthday_message: string | null }>("select name, birthday_message from store_settings where id = 1"),
+      has("customers") || has("birthdays")
+        ? query<{ name: string; birthday_message: string | null }>("select name, birthday_message from store_settings where id = 1")
+        : Promise.resolve([]),
       // birthdays from today to birthday_days_before days ahead, in the store's time zone
-      query<BirthdayRow>(
+      part<BirthdayRow>(
+        "birthdays",
         `with s as (select birthday_alert, birthday_days_before from store_settings where id = 1),
               days as (select n, ${LOCAL}::date + n as d from s, generate_series(0, s.birthday_days_before) n where s.birthday_alert)
          select a.name, a.phone, to_char(a.birthday, 'YYYY-MM-DD') as birthday, min(days.n)::int as days_left
@@ -239,30 +263,51 @@ export async function getDashboard(days: number): Promise<DashboardResult> {
                  and extract(day from date_trunc('year', days.d) + interval '1 month 28 days') <> 29)
           group by a.user_id, a.name, a.phone, a.birthday
           order by days_left, a.name limit 20`,
+        [],
       ),
     ]);
 
     const asDate = (v: unknown) => (v instanceof Date ? v.toISOString() : String(v));
+    const withStore = has("customers") || has("birthdays");
     return {
       ok: true,
-      metrics: m,
-      series,
-      top,
-      profit: { ...profit, margins },
-      heat,
-      times,
-      customers: {
-        ...customerCounts,
-        top: topCustomers.map((c) => ({ ...c, last_order: asDate(c.last_order) })),
-        lost: lost.map((c) => ({ ...c, last_order: asDate(c.last_order) })),
+      data: {
+        metrics: has("metrics") ? m : null,
+        series: has("series") ? series : null,
+        top: has("top") ? top : null,
+        profit: has("profit") ? { ...profit, margins } : null,
+        heat: has("heat") ? heat : null,
+        times: has("times") ? times : null,
+        customers: has("customers")
+          ? {
+              ...customerCounts,
+              top: topCustomers.map((c) => ({ ...c, last_order: asDate(c.last_order) })),
+              lost: lost.map((c) => ({ ...c, last_order: asDate(c.last_order) })),
+            }
+          : null,
+        neighborhoods: has("neighborhoods") ? neighborhoods : null,
+        store_name: withStore ? (store?.name ?? "loja") : null,
+        birthdays: has("birthdays") ? birthdays : null,
+        birthday_message: withStore ? (store?.birthday_message ?? null) : null,
       },
-      neighborhoods,
-      store_name: store?.name ?? "loja",
-      birthdays,
-      birthday_message: store?.birthday_message ?? null,
     };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Erro ao carregar o dashboard." };
+  }
+}
+
+/** Admin only. Saves the Dashboard the manager picked, on their own account; null goes back to the default. */
+export async function saveDashboardLayout(layout: DashboardLayout | null): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const me = await requireAdmin();
+    const error = layout && layoutError(layout);
+    if (error) return { ok: false, error };
+    // stored normalized: known blocks only, all of them, and a valid period
+    const saved = layout && JSON.stringify(resolveLayout(layout));
+    await query("update staff set dashboard_layout = $2::jsonb where user_id = $1", [me.id, saved]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Não foi possível salvar o dashboard." };
   }
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Camera, Compass, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { changeMyEmail, changeMyPassword, saveMyAvatar } from "@/actions/auth";
@@ -10,16 +10,26 @@ import { Field, Input } from "@/components/ui/field";
 import { Card } from "@/components/ui/misc";
 import { ConfirmDialog } from "@/components/ui/sheet";
 import { shrink } from "./image-upload";
-import { PageHeader, StaffAvatar, useProfile, useSetProfile } from "./panel-shell";
+import { PageHeader, StaffAvatar, useProfile, useSetProfile, useStartTour } from "./panel-shell";
 
 const OFFLINE = { ok: false as const, error: "Sem conexão. Tente novamente." };
 
 /** Each person's own sign-in e-mail and password. Open to the whole team. */
 export function AccountSettings() {
   const profile = useProfile();
+  const startTour = useStartTour();
   return (
     <div className="pb-8">
-      <PageHeader title="Minha conta" description="Seu e-mail e sua senha para entrar no painel." />
+      <PageHeader
+        title="Minha conta"
+        description="Seu e-mail e sua senha para entrar no painel."
+        actions={
+          <Button variant="outline" onClick={startTour}>
+            <Compass className="size-4" />
+            Rever tour
+          </Button>
+        }
+      />
       <div className="max-w-2xl space-y-4 px-4 sm:px-6">
         <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
           <div className="flex min-w-0 flex-1 items-center gap-4">

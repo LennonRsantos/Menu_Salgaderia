@@ -3,6 +3,8 @@
 import { CalendarCheck, Search, SearchX, Store, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/ui/misc";
+import { Tour, type TourStep } from "@/components/ui/tour";
+import { loadRecentOrders } from "@/lib/cart-store";
 import type { MenuResult } from "@/lib/menu";
 import { cn, normalizeSearch } from "@/lib/format";
 import { formatScheduled, spInstant } from "@/lib/hours";
@@ -17,6 +19,35 @@ import { ProductCard } from "./product-card";
 import { ProductSheet } from "./product-sheet";
 import { StoreHeader } from "./store-header";
 
+const TOUR_KEY = "salgaderia:tour";
+
+// Customers are anonymous, so "seen" lives on the device; someone who already ordered here skips it.
+function storeTourPending() {
+  try {
+    return localStorage.getItem(TOUR_KEY) !== "done" && loadRecentOrders().length === 0;
+  } catch {
+    return false;
+  }
+}
+
+function storeTourSteps(settings: StoreSettings | null): TourStep[] {
+  return [
+    { title: "Bem-vindo!", body: "Veja rapidinho como fazer seu pedido. Você pode pular quando quiser." },
+    { target: "busca", title: "Busca", body: "Procure um salgado ou bebida pelo nome." },
+    { target: "categorias", title: "Categorias", body: "Toque numa categoria para ir direto até ela." },
+    { target: "produto", title: "Produtos", body: "Toque num produto para ver detalhes, escolher adicionais e pôr no carrinho." },
+    { title: "Carrinho", body: "Os itens escolhidos ficam no carrinho, que aparece embaixo da tela. De lá você fecha o pedido." },
+    ...(settings?.schedule_enabled
+      ? [{ target: "reservar", title: "Encomendas", body: "Quer para outro dia? Escolha a data e o horário aqui antes de montar o pedido." }]
+      : []),
+    {
+      target: "conta",
+      title: "Sua conta",
+      body: "Crie uma conta para salvar seu endereço e ver seus pedidos. Depois de pedir, o acompanhamento aparece aqui no topo.",
+    },
+  ];
+}
+
 export function Storefront({ menu, settings, theme }: { menu: MenuResult; settings: StoreSettings | null; theme?: ActiveTheme }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Product | null>(null);
@@ -28,6 +59,7 @@ export function Storefront({ menu, settings, theme }: { menu: MenuResult; settin
   const reservation = mounted ? storedReservation : null;
   const setReservationOpen = useReservation((s) => s.setOpen);
   const clearReservation = useReservation((s) => s.clear);
+  const [tourDone, setTourDone] = useState(false);
 
   const categories = useMemo(() => (menu.ok ? menu.categories : []), [menu]);
 
@@ -68,6 +100,15 @@ export function Storefront({ menu, settings, theme }: { menu: MenuResult; settin
   }, [activeCategory]);
 
   const current = activeCategory ?? categories[0]?.id ?? null;
+  const tourOpen = mounted && !tourDone && categories.length > 0 && storeTourPending();
+  function finishTour() {
+    setTourDone(true);
+    try {
+      localStorage.setItem(TOUR_KEY, "done");
+    } catch {
+      // storage unavailable: the tour may show again on the next visit
+    }
+  }
 
   return (
     <div className="min-h-dvh pb-28">
@@ -100,7 +141,7 @@ export function Storefront({ menu, settings, theme }: { menu: MenuResult; settin
 
       <div className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur-md">
         <div className="mx-auto max-w-5xl px-4 pt-3 sm:px-6">
-          <label className="relative block">
+          <label className="relative block" data-tour="busca">
             <span className="sr-only">Buscar no cardápio</span>
             <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4.5 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -122,7 +163,7 @@ export function Storefront({ menu, settings, theme }: { menu: MenuResult; settin
             )}
           </label>
           {!query && categories.length > 0 && (
-            <nav ref={tabsRef} className="no-scrollbar -mx-4 mt-2 flex gap-1 overflow-x-auto px-4 sm:-mx-6 sm:px-6" aria-label="Categorias">
+            <nav ref={tabsRef} data-tour="categorias" className="no-scrollbar -mx-4 mt-2 flex gap-1 overflow-x-auto px-4 sm:-mx-6 sm:px-6" aria-label="Categorias">
               {categories.map((c) => (
                 <a
                   key={c.id}
@@ -168,15 +209,21 @@ export function Storefront({ menu, settings, theme }: { menu: MenuResult; settin
             className="py-20"
           />
         ) : (
-          filtered.map((c) => (
+          filtered.map((c, ci) => (
             <section key={c.id} id={`cat-${c.id}`} className="scroll-mt-32 pt-7" aria-labelledby={`h-${c.id}`}>
               <h2 id={`h-${c.id}`} className="mb-3 text-lg font-bold tracking-tight">
                 {c.name}
               </h2>
               <div className="grid gap-3 md:grid-cols-2">
-                {c.products.map((p) => (
-                  <ProductCard key={p.id} product={p} onSelect={() => setSelected(p)} />
-                ))}
+                {c.products.map((p, pi) =>
+                  ci === 0 && pi === 0 ? (
+                    <div key={p.id} data-tour="produto">
+                      <ProductCard product={p} onSelect={() => setSelected(p)} />
+                    </div>
+                  ) : (
+                    <ProductCard key={p.id} product={p} onSelect={() => setSelected(p)} />
+                  ),
+                )}
               </div>
             </section>
           ))
@@ -185,6 +232,7 @@ export function Storefront({ menu, settings, theme }: { menu: MenuResult; settin
 
       <ProductSheet product={selected} onClose={() => setSelected(null)} />
       <CartBar settings={settings} />
+      {tourOpen && <Tour steps={storeTourSteps(settings)} onDone={finishTour} />}
     </div>
   );
 }

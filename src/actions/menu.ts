@@ -52,11 +52,11 @@ async function staffWrite<T>(fn: () => Promise<T>): Promise<MenuActionResult<T>>
 }
 
 export async function fetchMenuAdmin(): Promise<
-  MenuActionResult<{ categories: Category[]; products: Product[]; links: StockLink[]; stockItems: StockOption[] }>
+  MenuActionResult<{ categories: Category[]; products: Product[]; links: StockLink[]; stockItems: StockOption[]; saleUnits: string[] }>
 > {
   try {
     await requireStaff();
-    const [categories, products, links, stockItems] = await Promise.all([
+    const [categories, products, links, stockItems, [settings]] = await Promise.all([
       query<Category>("select id, name, position, is_active from categories order by position, name"),
       query(`select ${PRODUCT_COLUMNS} from products order by position, name`),
       query<StockLink>("select product_id, addon_id, item_id, quantity from stock_links order by id"),
@@ -64,8 +64,12 @@ export async function fetchMenuAdmin(): Promise<
         `select i.id, i.name, i.unit, i.quantity, i.cost, c.name as category from stock_items i join stock_categories c on c.id = i.category_id
           order by c.position, c.name, i.name`,
       ),
+      query<{ sale_units: string[] }>("select sale_units from store_settings where id = 1"),
     ]);
-    return { ok: true, data: { categories, products: products.map(productFromRow), links, stockItems } };
+    return {
+      ok: true,
+      data: { categories, products: products.map(productFromRow), links, stockItems, saleUnits: settings?.sale_units ?? [] },
+    };
   } catch (e) {
     return fail(e);
   }
@@ -121,6 +125,7 @@ export async function saveProduct(draft: ProductDraft) {
       draft.is_available !== false,
       Number.isFinite(draft.position) ? Math.floor(draft.position) : 0,
       JSON.stringify(groups),
+      String(draft.sale_unit ?? "").trim().slice(0, 30) || null,
     ];
 
     return transaction(async (db) => {
@@ -128,7 +133,7 @@ export async function saveProduct(draft: ProductDraft) {
       if (draft.id) {
         const { rows } = await db.query<{ id: string }>(
           `update products set category_id = $2, name = $3, description = $4, price = $5, image_url = $6,
-             is_visible = $7, is_available = $8, position = $9, addon_groups = $10, updated_at = now()
+             is_visible = $7, is_available = $8, position = $9, addon_groups = $10, sale_unit = $11, updated_at = now()
            where id = $1 returning id`,
           [UUID.parse(draft.id), ...values],
         );
@@ -136,8 +141,8 @@ export async function saveProduct(draft: ProductDraft) {
         id = rows[0].id;
       } else {
         const { rows } = await db.query<{ id: string }>(
-          `insert into products (category_id, name, description, price, image_url, is_visible, is_available, position, addon_groups)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9) returning id`,
+          `insert into products (category_id, name, description, price, image_url, is_visible, is_available, position, addon_groups, sale_unit)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) returning id`,
           values,
         );
         id = rows[0].id;

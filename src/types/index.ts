@@ -58,6 +58,7 @@ export interface StoreSettings {
   birthday_days_before: number;
   /** Congratulation text with {nome} and {loja}; null = default message. */
   birthday_message: string | null;
+  sale_units: string[];
 }
 
 export interface DeliveryZone {
@@ -78,6 +79,18 @@ export interface Profile {
   nav_pins: string[] | null;
   /** Profile photo (/api/images/<id>); null = initials. */
   avatar_url: string | null;
+  /** When the first-access tour was finished or skipped; null = show it. */
+  tour_done_at: string | null;
+  /** Dashboard blocks this manager picked; null = the default layout. */
+  dashboard_layout: DashboardLayout | null;
+}
+
+/** A manager's Dashboard choice (rules in src/lib/dashboard-layout.ts). */
+export interface DashboardLayout {
+  /** Every block, in the chosen order. */
+  items: { key: string; hidden?: boolean; full?: boolean }[];
+  /** Days the Dashboard opens with: 7, 30 or 90. */
+  range?: number;
 }
 
 export interface Category {
@@ -116,6 +129,8 @@ export interface Product {
   is_available: boolean;
   position: number;
   addon_groups: AddonGroup[];
+  /** Sold by (unidade, dezena…); null = no label. */
+  sale_unit: string | null;
   /** Out of stock today; still orderable as a scheduled order (encomenda). */
   stock_out?: boolean;
 }

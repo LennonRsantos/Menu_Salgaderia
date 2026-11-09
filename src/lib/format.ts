@@ -4,6 +4,11 @@ export function formatBRL(value: number | string | null | undefined) {
   return brl.format(Number(value ?? 0));
 }
 
+/** "R$ 12,00 / dezena"; plain price when the product has no sale unit. */
+export function priceLabel(price: number, unit: string | null | undefined) {
+  return unit ? `${formatBRL(price)} / ${unit}` : formatBRL(price);
+}
+
 export function formatCompactBRL(value: number) {
   if (Math.abs(value) >= 1000) {
     return `R$ ${(value / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil`;

@@ -3,6 +3,7 @@
 import {
   Boxes,
   Calculator,
+  Compass,
   CalendarClock,
   ChevronRight,
   ClipboardList,
@@ -27,12 +28,13 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, use, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { getMyProfile, saveNavPins, signOutStaff } from "@/actions/auth";
+import { getMyProfile, markTourDone, saveNavPins, signOutStaff } from "@/actions/auth";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
 import { Sheet } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { Tour, type TourStep } from "@/components/ui/tour";
 import { cn } from "@/lib/format";
 import { canSee, MAX_PINS, resolvePins, type NavKey } from "@/lib/nav";
 import { clearStaff, markStaff } from "@/lib/staff-hint";
@@ -42,6 +44,7 @@ import type { Profile } from "@/types";
 
 const ProfileContext = createContext<Profile | null>(null);
 const SetProfileContext = createContext<(profile: Profile) => void>(() => {});
+const StartTourContext = createContext<() => void>(() => {});
 
 /** Current staff profile. Only usable inside the panel shell. */
 export function useProfile() {
@@ -52,6 +55,9 @@ export function useProfile() {
 
 /** Replaces the profile shown in the shell, after the person edits their own account. */
 export const useSetProfile = () => use(SetProfileContext);
+
+/** Opens the first-access tour again ("Rever tour"). */
+export const useStartTour = () => use(StartTourContext);
 
 type NavItem = {
   key: NavKey;
@@ -78,6 +84,40 @@ const NAV: NavItem[] = [
   { key: "conta", href: "/admin/conta", label: "Minha conta", short: "Conta", icon: UserCog },
 ];
 
+// One line per page for the first-access tour; the page list follows the person's role.
+const TOUR_TEXT: Record<NavKey, string> = {
+  dashboard: "Resumo das vendas: faturamento, pedidos e produtos que mais saem.",
+  pedidos: "Os pedidos do cardápio chegam aqui na hora. Acompanhe cada um até a entrega.",
+  encomendas: "Pedidos agendados para outros dias e o que produzir em cada dia.",
+  cardapio: "Crie, edite, pause ou oculte produtos. As mudanças aparecem no link público em instantes.",
+  estoque: "Cada venda baixa os itens ligados ao produto. Sem estoque, o produto aparece como esgotado.",
+  custos: "Quanto custa cada produto: insumos da ficha técnica, extras e a parte das despesas do mês.",
+  clientes: "Quem já pediu, quanto gastou e como falar com cada um.",
+  cupons: "Descontos que o cliente digita ao fechar o pedido.",
+  equipe: "Convide gerentes e funcionários. Funcionários só veem pedidos, agenda, cardápio e estoque.",
+  loja: "Nome, logo, horários, entrega e regras do pedido que aparecem no cardápio público.",
+  conta: "Sua foto, seu e-mail e sua senha. Aqui também dá para rever este tour.",
+};
+
+function tourSteps(nav: NavItem[]): TourStep[] {
+  return [
+    { title: "Bem-vindo ao painel!", body: "Veja em poucos passos onde fica cada coisa. Você pode pular quando quiser." },
+    ...nav.map((n) => ({ target: n.key, fallback: "mais", fallbackHint: "Fica no botão Mais.", title: n.label, body: TOUR_TEXT[n.key] })),
+    {
+      target: "cardapio-publico",
+      fallback: "mais",
+      fallbackHint: "Fica no botão Mais.",
+      title: "Ver cardápio público",
+      body: "Abre a loja como o cliente vê. Lá, o botão Painel traz você de volta.",
+    },
+    {
+      target: "mais",
+      title: "Mais e atalhos",
+      body: "No celular e no tablet, Mais mostra as outras páginas. Em Escolher atalhos você decide o que fica na barra.",
+    },
+  ];
+}
+
 /** The store logo set in the panel; the default brand icon until one is set. */
 export function StoreMark({ logoUrl, size, alt = "", className }: { logoUrl: string | null; size: number; alt?: string; className?: string }) {
   return (
@@ -99,6 +139,7 @@ export function PanelShell({ logoUrl, children }: { logoUrl: string | null; chil
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [tourAgain, setTourAgain] = useState(false);
   // "Mais" closes by itself on navigation
   const [lastPath, setLastPath] = useState(pathname);
   if (lastPath !== pathname) {
@@ -168,6 +209,21 @@ export function PanelShell({ logoUrl, children }: { logoUrl: string | null; chil
     toast.success("Atalhos salvos.");
     return true;
   }
+  // opens by itself until the person finishes or skips it once (saved on the account, so every device)
+  const tourOpen = Boolean(profile) && (tourAgain || profile?.tour_done_at === null);
+  function finishTour() {
+    setTourAgain(false);
+    if (!profile || profile.tour_done_at !== null) return;
+    setProfile({ ...profile, tour_done_at: new Date().toISOString() });
+    markTourDone()
+      .then((r) => !r.ok && toast.error(r.error))
+      .catch(() => toast.error("Sem conexão. O tour pode aparecer de novo."));
+  }
+  const startTour = () => {
+    setMoreOpen(false);
+    setTourAgain(true);
+  };
+
   const isActive = (href: string) => (href === "/admin" ? pathname === "/admin" : pathname.startsWith(href));
   const moreActive = more.some((n) => isActive(n.href));
 
@@ -192,6 +248,7 @@ export function PanelShell({ logoUrl, children }: { logoUrl: string | null; chil
                 <Link
                   key={n.href}
                   href={n.href}
+                  data-tour={n.key}
                   aria-current={isActive(n.href) ? "page" : undefined}
                   className={cn(
                     "flex h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold transition-colors",
@@ -208,7 +265,7 @@ export function PanelShell({ logoUrl, children }: { logoUrl: string | null; chil
         </nav>
         <div className="border-t border-border p-3">
           {/* same tab: the storefront shows a "Painel" button back to the team */}
-          <Link href="/" className="flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground hover:bg-surface-2 hover:text-foreground">
+          <Link href="/" data-tour="cardapio-publico" className="flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground hover:bg-surface-2 hover:text-foreground">
             <Store className="size-4" />
             Ver cardápio público
           </Link>
@@ -235,7 +292,9 @@ export function PanelShell({ logoUrl, children }: { logoUrl: string | null; chil
         <main id="conteudo" tabIndex={-1} className="flex-1 pb-[calc(4.5rem+env(safe-area-inset-bottom))] outline-none md:pb-0">
           {profile ? (
             <ProfileContext value={profile}>
-              <SetProfileContext value={setProfile}>{children}</SetProfileContext>
+              <SetProfileContext value={setProfile}>
+                <StartTourContext value={startTour}>{children}</StartTourContext>
+              </SetProfileContext>
             </ProfileContext>
           ) : loadError ? (
             <EmptyState
@@ -292,15 +351,17 @@ export function PanelShell({ logoUrl, children }: { logoUrl: string | null; chil
           isActive={isActive}
           profile={profile}
           onSignOut={signOut}
+          onStartTour={startTour}
         />
       )}
+      {tourOpen && <Tour steps={tourSteps(nav)} onDone={finishTour} />}
     </div>
   );
 }
 
 function MoreButton({ active, onOpen }: { active: boolean; onOpen: () => void }) {
   return (
-    <button type="button" onClick={onOpen} aria-haspopup="dialog" className={tabClasses(active)}>
+    <button type="button" onClick={onOpen} aria-haspopup="dialog" data-tour="mais" className={tabClasses(active)}>
       <span className={pillClasses(active)}>
         <Ellipsis className="size-5" />
       </span>
@@ -318,7 +379,7 @@ const pillClasses = (active: boolean) => cn("grid h-8 w-14 place-items-center ro
 
 function NavTab({ item, active }: { item: NavItem; active: boolean }) {
   return (
-    <Link href={item.href} aria-current={active ? "page" : undefined} className={tabClasses(active)}>
+    <Link href={item.href} data-tour={item.key} aria-current={active ? "page" : undefined} className={tabClasses(active)}>
       <span className={pillClasses(active)}>
         <item.icon className="size-5" />
       </span>
@@ -338,6 +399,7 @@ function MoreSheet({
   isActive,
   profile,
   onSignOut,
+  onStartTour,
 }: {
   open: boolean;
   onClose: () => void;
@@ -348,6 +410,7 @@ function MoreSheet({
   isActive: (href: string) => boolean;
   profile: Profile;
   onSignOut: () => void;
+  onStartTour: () => void;
 }) {
   const row = "flex h-12 w-full items-center gap-3 rounded-md px-3 text-sm font-semibold transition-colors hover:bg-surface-2";
   // the pins being chosen; null = not editing
@@ -453,6 +516,10 @@ function MoreSheet({
             <Store className="size-5 text-muted-foreground" />
             <span className="flex-1">Ver cardápio público</span>
           </Link>
+          <button type="button" onClick={onStartTour} className={row}>
+            <Compass className="size-5 text-muted-foreground" />
+            <span className="flex-1 text-left">Rever tour</span>
+          </button>
           <div className="flex items-center gap-3 px-3 py-1.5">
             <span className="flex-1 text-sm font-semibold">Tema</span>
             <ThemeChoice />
@@ -540,6 +607,7 @@ function UserCard({ profile, onSignOut }: { profile: Profile; onSignOut: () => v
     <div className="mt-2 flex items-center gap-1 rounded-md">
       <Link
         href="/admin/conta"
+        data-tour="conta"
         className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-2 hover:bg-surface-2"
         aria-label={`Minha conta: ${profile.full_name || profile.email}`}
       >

@@ -333,6 +333,16 @@ alter table staff add column if not exists nav_pins text[];
 -- Profile photo each person sets in "Minha conta" (/api/images/<id>).
 alter table staff add column if not exists avatar_url text;
 
+-- When each person finished (or skipped) the panel's first-access tour; null =
+-- still to see it. Accounts that existed before the tour get "now" (they already
+-- know the panel); dropping the default makes new accounts start null.
+alter table staff add column if not exists tour_done_at timestamptz default now();
+alter table staff alter column tour_done_at drop default;
+
+-- Dashboard blocks each manager shows, their order and width, and the period it
+-- opens with (src/lib/dashboard-layout.ts); null = the default layout.
+alter table staff add column if not exists dashboard_layout jsonb;
+
 -- Discount coupons (admin "Cupons" tab, src/lib/coupons.ts). A coupon is used
 -- at most once per customer (WhatsApp, and account when signed in) and at most
 -- max_uses times in total (null = no limit). Cancelling an order keeps the use.
@@ -375,3 +385,9 @@ alter table store_settings add column if not exists birthday_message text;
 -- Days ahead the panel's Encomendas page shows by default (1..180).
 alter table store_settings add column if not exists schedule_view_days int not null default 60
   check (schedule_view_days between 1 and 180);
+
+-- Sale units (Configurações > Cardápio) and the one each product is sold by
+-- (null = no label). Plain text on the product, so removing a unit from the
+-- list never breaks a product.
+alter table store_settings add column if not exists sale_units text[] not null default '{unidade,dezena,centena}';
+alter table products add column if not exists sale_unit text;

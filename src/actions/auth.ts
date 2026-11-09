@@ -77,6 +77,17 @@ export async function saveNavPins(keys: string[] | null): Promise<SignInResult> 
   }
 }
 
+/** Marks the first-access tour as seen for the signed-in person, so it does not open again on any device. */
+export async function markTourDone(): Promise<SignInResult> {
+  try {
+    const profile = await requireStaff();
+    await query("update staff set tour_done_at = now() where user_id = $1", [profile.id]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Não foi possível salvar o tour." };
+  }
+}
+
 const MIN_PASSWORD = 8;
 
 /** The signed-in person changes their own password; other devices are signed out. */
