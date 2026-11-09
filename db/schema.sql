@@ -391,3 +391,26 @@ alter table store_settings add column if not exists schedule_view_days int not n
 -- list never breaks a product.
 alter table store_settings add column if not exists sale_units text[] not null default '{unidade,dezena,centena}';
 alter table products add column if not exists sale_unit text;
+
+-- Training videos (panel > Treinamento). The file lives in Vercel Blob; the
+-- manager uploads it straight from the browser and the row keeps its URL.
+create table if not exists training_videos (
+  id          uuid primary key default gen_random_uuid(),
+  title       text not null check (length(title) between 1 and 120),
+  description text not null default '' check (length(description) <= 1000),
+  video_url   text not null,
+  position    int not null default 0,
+  created_at  timestamptz not null default now()
+);
+
+-- Training modules: 'geral' (Primeiros passos) or a panel page key (src/lib/training.ts),
+-- checked in the app so new panel pages need no migration.
+alter table training_videos add column if not exists module text not null default 'geral';
+
+-- Videos each person marked as concluído.
+create table if not exists training_progress (
+  user_id  text not null references staff (user_id) on delete cascade,
+  video_id uuid not null references training_videos (id) on delete cascade,
+  done_at  timestamptz not null default now(),
+  primary key (user_id, video_id)
+);

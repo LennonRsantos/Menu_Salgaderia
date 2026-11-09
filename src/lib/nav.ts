@@ -3,7 +3,7 @@
 
 import type { UserRole } from "@/types";
 
-export const NAV_KEYS = ["dashboard", "pedidos", "encomendas", "cardapio", "estoque", "custos", "clientes", "cupons", "equipe", "loja", "conta"] as const;
+export const NAV_KEYS = ["dashboard", "pedidos", "encomendas", "cardapio", "estoque", "custos", "clientes", "cupons", "equipe", "loja", "treinamento", "conta"] as const;
 export type NavKey = (typeof NAV_KEYS)[number];
 
 /** Pages only the manager opens. */

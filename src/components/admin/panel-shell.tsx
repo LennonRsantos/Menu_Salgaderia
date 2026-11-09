@@ -9,6 +9,7 @@ import {
   ClipboardList,
   Contact,
   Ellipsis,
+  GraduationCap,
   LayoutDashboard,
   LogOut,
   Monitor,
@@ -70,7 +71,7 @@ type NavItem = {
 
 // Who may open each page is in src/lib/nav.ts; each person picks which ones sit
 // in the phone bar / tablet rail, the rest go behind "Mais".
-const NAV: NavItem[] = [
+export const NAV: NavItem[] = [
   { key: "dashboard", href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { key: "pedidos", href: "/admin/pedidos", label: "Pedidos", icon: ClipboardList },
   { key: "encomendas", href: "/admin/encomendas", label: "Encomendas", short: "Agenda", icon: CalendarClock },
@@ -81,6 +82,7 @@ const NAV: NavItem[] = [
   { key: "cupons", href: "/admin/cupons", label: "Cupons", icon: TicketPercent },
   { key: "equipe", href: "/admin/equipe", label: "Equipe", icon: Users },
   { key: "loja", href: "/admin/configuracoes", label: "Loja", icon: Settings },
+  { key: "treinamento", href: "/admin/treinamento", label: "Treinamento", short: "Vídeos", icon: GraduationCap },
   { key: "conta", href: "/admin/conta", label: "Minha conta", short: "Conta", icon: UserCog },
 ];
 
@@ -96,6 +98,7 @@ const TOUR_TEXT: Record<NavKey, string> = {
   cupons: "Descontos que o cliente digita ao fechar o pedido.",
   equipe: "Convide gerentes e funcionários. Funcionários só veem pedidos, agenda, cardápio e estoque.",
   loja: "Nome, logo, horários, entrega e regras do pedido que aparecem no cardápio público.",
+  treinamento: "Vídeos que ensinam a usar o painel. Assista quando tiver dúvida.",
   conta: "Sua foto, seu e-mail e sua senha. Aqui também dá para rever este tour.",
 };
 
